@@ -3,6 +3,11 @@ import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 
 void main() {
+  // Catch any uncaught errors so we can see them
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('FLUTTER ERROR: ${details.exceptionAsString()}');
+  };
   runApp(const FlingShotApp());
 }
 
@@ -33,82 +38,109 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   final Scene scene = Scene();
   bool ready = false;
+  String status = 'Starting...';
+  String? errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _setupScene();
+    // Show UI first, then load scene
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _setupScene();
+    });
   }
 
   Future<void> _setupScene() async {
-    // Initialize Flutter Scene static resources (shaders etc.)
-    await Scene.initializeStaticResources();
+    try {
+      setState(() => status = 'Initializing Flutter Scene...');
 
-    // Ground plane (PlaneGeometry uses named width/depth, not Vector3)
-    final ground = Node(
-      mesh: Mesh(
-        PlaneGeometry(width: 20, depth: 20),
-        PhysicallyBasedMaterial()
-          ..baseColorFactor = vm.Vector4(0.35, 0.55, 0.25, 1.0),
-      ),
-    );
-    ground.position = vm.Vector3(0, 0, 0);
-    scene.add(ground);
+      await Scene.initializeStaticResources();
 
-    // Colorful blocks (like the target tower)
-    final colors = [
-      vm.Vector4(0.9, 0.2, 0.2, 1.0), // red
-      vm.Vector4(0.2, 0.6, 0.9, 1.0), // blue
-      vm.Vector4(0.95, 0.75, 0.1, 1.0), // yellow
-      vm.Vector4(0.3, 0.8, 0.3, 1.0), // green
-      vm.Vector4(0.9, 0.4, 0.1, 1.0), // orange
-    ];
+      setState(() => status = 'Building scene...');
 
-    // Simple pyramid of blocks
-    int colorIndex = 0;
-    for (int row = 0; row < 4; row++) {
-      final count = 4 - row;
-      for (int i = 0; i < count; i++) {
-        final block = Node(
-          mesh: Mesh(
-            CuboidGeometry(vm.Vector3(0.9, 0.9, 0.9)),
-            PhysicallyBasedMaterial()
-              ..baseColorFactor = colors[colorIndex % colors.length],
-          ),
-        );
-        final x = (i - (count - 1) / 2) * 1.05;
-        final y = 0.45 + row * 1.0;
-        block.position = vm.Vector3(x, y, 0);
-        scene.add(block);
-        colorIndex++;
+      // Ground plane
+      final groundMat = PhysicallyBasedMaterial();
+      groundMat.baseColorFactor = vm.Vector4(0.35, 0.55, 0.25, 1.0);
+
+      final ground = Node(
+        mesh: Mesh(
+          PlaneGeometry(width: 20, depth: 20),
+          groundMat,
+        ),
+      );
+      ground.position = vm.Vector3(0, 0, 0);
+      scene.add(ground);
+
+      // Colorful blocks
+      final colors = [
+        vm.Vector4(0.9, 0.2, 0.2, 1.0),
+        vm.Vector4(0.2, 0.6, 0.9, 1.0),
+        vm.Vector4(0.95, 0.75, 0.1, 1.0),
+        vm.Vector4(0.3, 0.8, 0.3, 1.0),
+        vm.Vector4(0.9, 0.4, 0.1, 1.0),
+      ];
+
+      int colorIndex = 0;
+      for (int row = 0; row < 4; row++) {
+        final count = 4 - row;
+        for (int i = 0; i < count; i++) {
+          final mat = PhysicallyBasedMaterial();
+          mat.baseColorFactor = colors[colorIndex % colors.length];
+
+          final block = Node(
+            mesh: Mesh(
+              CuboidGeometry(vm.Vector3(0.9, 0.9, 0.9)),
+              mat,
+            ),
+          );
+          final x = (i - (count - 1) / 2) * 1.05;
+          final y = 0.45 + row * 1.0;
+          block.position = vm.Vector3(x, y, 0);
+          scene.add(block);
+          colorIndex++;
+        }
       }
-    }
 
-    // Placeholder ball
-    final ball = Node(
-      mesh: Mesh(
-        SphereGeometry(radius: 0.35),
-        PhysicallyBasedMaterial()
-          ..baseColorFactor = vm.Vector4(0.95, 0.95, 0.95, 1.0)
-          ..metallicFactor = 0.3
-          ..roughnessFactor = 0.4,
-      ),
-    );
-    ball.position = vm.Vector3(-4.5, 0.5, 0);
-    scene.add(ball);
+      // Ball
+      final ballMat = PhysicallyBasedMaterial();
+      ballMat.baseColorFactor = vm.Vector4(0.95, 0.95, 0.95, 1.0);
+      ballMat.metallicFactor = 0.3;
+      ballMat.roughnessFactor = 0.4;
 
-    if (mounted) {
-      setState(() => ready = true);
+      final ball = Node(
+        mesh: Mesh(
+          SphereGeometry(radius: 0.35),
+          ballMat,
+        ),
+      );
+      ball.position = vm.Vector3(-4.5, 0.5, 0);
+      scene.add(ball);
+
+      if (mounted) {
+        setState(() {
+          ready = true;
+          status = 'Scene ready';
+        });
+      }
+    } catch (e, st) {
+      debugPrint('SCENE ERROR: $e');
+      debugPrint('$st');
+      if (mounted) {
+        setState(() {
+          errorMessage = e.toString();
+          status = 'Failed';
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF1A1A2E),
       body: Stack(
         children: [
-          // 3D Scene
+          // 3D Scene (only when ready)
           if (ready)
             SceneView(
               scene,
@@ -116,51 +148,75 @@ class _GameScreenState extends State<GameScreen> {
                 position: vm.Vector3(0, 4, 10),
                 target: vm.Vector3(0, 1.5, 0),
               ),
-            )
-          else
-            const Center(
-              child: CircularProgressIndicator(color: Colors.orange),
             ),
 
-          // Simple HUD
+          // Always-visible status overlay
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'FlingShot',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.95),
+                      color: Colors.white,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   Text(
-                    'Basic 3D Scene • Flutter Scene',
+                    status,
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 14,
+                      color: ready
+                          ? Colors.greenAccent
+                          : errorMessage != null
+                              ? Colors.redAccent
+                              : Colors.orangeAccent,
+                      fontSize: 15,
                     ),
                   ),
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.redAccent),
+                      ),
+                      child: Text(
+                        errorMessage!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
                   const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+                  if (!ready && errorMessage == null)
+                    const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.orangeAccent,
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(12),
+                  if (ready)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        '3D Scene loaded \u2022 Next: Physics',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
                     ),
-                    child: const Text(
-                      'Next: Physics + Aim & Fling',
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                  ),
                 ],
               ),
             ),
