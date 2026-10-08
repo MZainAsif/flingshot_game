@@ -44,10 +44,10 @@ class _GameScreenState extends State<GameScreen> {
     // Initialize Flutter Scene static resources (shaders etc.)
     await Scene.initializeStaticResources();
 
-    // Ground plane
+    // Ground plane (PlaneGeometry uses named width/depth, not Vector3)
     final ground = Node(
       mesh: Mesh(
-        PlaneGeometry(vm.Vector3(20, 0, 20)),
+        PlaneGeometry(width: 20, depth: 20),
         PhysicallyBasedMaterial()
           ..baseColorFactor = vm.Vector4(0.35, 0.55, 0.25, 1.0),
       ),
@@ -55,7 +55,7 @@ class _GameScreenState extends State<GameScreen> {
     ground.position = vm.Vector3(0, 0, 0);
     scene.add(ground);
 
-    // A few colorful blocks (like the target tower)
+    // Colorful blocks (like the target tower)
     final colors = [
       vm.Vector4(0.9, 0.2, 0.2, 1.0), // red
       vm.Vector4(0.2, 0.6, 0.9, 1.0), // blue
@@ -84,7 +84,7 @@ class _GameScreenState extends State<GameScreen> {
       }
     }
 
-    // A simple cannon / ball representation (placeholder)
+    // Placeholder ball
     final ball = Node(
       mesh: Mesh(
         SphereGeometry(radius: 0.35),
