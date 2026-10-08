@@ -1,17 +1,29 @@
-# flingshot_game
+# FlingShot: Knock Down Blocks
 
-A new Flutter project.
+A 3D physics-based mobile game built with **Flutter + Flutter Scene**.
 
-## Getting Started
+Aim, fling, and knock down colorful block towers.
 
-This project is a starting point for a Flutter application.
+## Status
 
-A few resources to get you started if this is your first Flutter project:
+- [x] Flutter Scene setup
+- [x] Basic 3D scene (ground + blocks + ball)
+- [ ] Physics (Rapier / box3d)
+- [ ] Aim & fling mechanics
+- [ ] Block destruction / levels
+- [ ] UI (score, lives, levels)
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Run
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter pub get
+flutter run --enable-flutter-gpu
+```
+
+> Flutter 3.47+ required (Flutter GPU support).
+
+## Tech
+
+- Flutter
+- [Flutter Scene](https://fscene.dev) — realtime 3D engine
+- Physics coming next
