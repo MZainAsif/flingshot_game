@@ -3,7 +3,6 @@ import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 
 void main() {
-  // Catch any uncaught errors so we can see them
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
     debugPrint('FLUTTER ERROR: ${details.exceptionAsString()}');
@@ -20,45 +19,164 @@ class FlingShotApp extends StatelessWidget {
       title: 'FlingShot',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.deepOrange,
+          brightness: Brightness.dark,
+        ),
         useMaterial3: true,
       ),
-      home: const GameScreen(),
+      home: const HomeScreen(),
     );
   }
 }
 
-class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+/// Pure Flutter UI first — proves the app runs without Flutter Scene.
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<GameScreen> createState() => _GameScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _HomeScreenState extends State<HomeScreen> {
+  bool loading3d = false;
+  String? errorMessage;
+
+  Future<void> _open3d() async {
+    setState(() {
+      loading3d = true;
+      errorMessage = null;
+    });
+
+    try {
+      await Scene.initializeStaticResources();
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const SceneScreen()),
+      );
+    } catch (e, st) {
+      debugPrint('SCENE INIT ERROR: $e\n$st');
+      if (mounted) {
+        setState(() {
+          errorMessage = e.toString();
+        });
+      }
+    } finally {
+      if (mounted) setState(() => loading3d = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F0F1A),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 40),
+              const Text(
+                'FlingShot',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Knock Down Blocks',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.orangeAccent.withValues(alpha: 0.9),
+                  fontSize: 16,
+                ),
+              ),
+              const Spacer(),
+              if (errorMessage != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.redAccent),
+                  ),
+                  child: Text(
+                    errorMessage!,
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+              FilledButton(
+                onPressed: loading3d ? null : _open3d,
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.deepOrange,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: loading3d
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Play 3D Scene',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'UI loads without Scene. Tap button to init 3D.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.45),
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 3D scene — only opened after successful init.
+class SceneScreen extends StatefulWidget {
+  const SceneScreen({super.key});
+
+  @override
+  State<SceneScreen> createState() => _SceneScreenState();
+}
+
+class _SceneScreenState extends State<SceneScreen> {
   final Scene scene = Scene();
   bool ready = false;
-  String status = 'Starting...';
+  String status = 'Building scene...';
   String? errorMessage;
 
   @override
   void initState() {
     super.initState();
-    // Show UI first, then load scene
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _setupScene();
-    });
+    _buildScene();
   }
 
-  Future<void> _setupScene() async {
+  Future<void> _buildScene() async {
     try {
-      setState(() => status = 'Initializing Flutter Scene...');
-
-      await Scene.initializeStaticResources();
-
-      setState(() => status = 'Building scene...');
-
-      // Ground plane
       final groundMat = PhysicallyBasedMaterial();
       groundMat.baseColorFactor = vm.Vector4(0.35, 0.55, 0.25, 1.0);
 
@@ -68,10 +186,8 @@ class _GameScreenState extends State<GameScreen> {
           groundMat,
         ),
       );
-      ground.position = vm.Vector3(0, 0, 0);
       scene.add(ground);
 
-      // Colorful blocks
       final colors = [
         vm.Vector4(0.9, 0.2, 0.2, 1.0),
         vm.Vector4(0.2, 0.6, 0.9, 1.0),
@@ -101,7 +217,6 @@ class _GameScreenState extends State<GameScreen> {
         }
       }
 
-      // Ball
       final ballMat = PhysicallyBasedMaterial();
       ballMat.baseColorFactor = vm.Vector4(0.95, 0.95, 0.95, 1.0);
       ballMat.metallicFactor = 0.3;
@@ -123,8 +238,7 @@ class _GameScreenState extends State<GameScreen> {
         });
       }
     } catch (e, st) {
-      debugPrint('SCENE ERROR: $e');
-      debugPrint('$st');
+      debugPrint('SCENE BUILD ERROR: $e\n$st');
       if (mounted) {
         setState(() {
           errorMessage = e.toString();
@@ -137,10 +251,9 @@ class _GameScreenState extends State<GameScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 3D Scene (only when ready)
           if (ready)
             SceneView(
               scene,
@@ -149,72 +262,46 @@ class _GameScreenState extends State<GameScreen> {
                 target: vm.Vector3(0, 1.5, 0),
               ),
             ),
-
-          // Always-visible status overlay
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'FlingShot',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    status,
-                    style: TextStyle(
-                      color: ready
-                          ? Colors.greenAccent
-                          : errorMessage != null
-                              ? Colors.redAccent
-                              : Colors.orangeAccent,
-                      fontSize: 15,
-                    ),
-                  ),
-                  if (errorMessage != null) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.redAccent),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
                       ),
+                      Text(
+                        status,
+                        style: TextStyle(
+                          color: errorMessage != null
+                              ? Colors.redAccent
+                              : Colors.greenAccent,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.all(8),
                       child: Text(
                         errorMessage!,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: Colors.white70,
                           fontSize: 12,
                         ),
                       ),
                     ),
-                  ],
-                  const Spacer(),
                   if (!ready && errorMessage == null)
-                    const Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.orangeAccent,
-                      ),
-                    ),
-                  if (ready)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        '3D Scene loaded \u2022 Next: Physics',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                    const Expanded(
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.orangeAccent,
+                        ),
                       ),
                     ),
                 ],
